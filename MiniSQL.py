@@ -7,22 +7,20 @@ import os
 import re
 import numpy as np
 
-Path = "./files/"
-# All_Tables_Headers = {}
-# All_Tables = {}
+Path = "./"
 
 def Get_All_Tables_Headers(All_Tables,All_Tables_Headers):
     Headers = []
     Table_Name = ""
     Previous_Line = ""
-    with open('./files/metadata.txt') as f:
+    with open(Path+'metadata.txt') as f:
         My_Lines = f.read().splitlines()
         for Line in My_Lines:
             if(Previous_Line == "<begin_table>"):
                 Table_Name = Line
             elif(Line == "<end_table>"):
                 All_Tables_Headers[Table_Name] = Headers
-                All_Tables[Table_Name] = list(csv.reader(open("./files/"+Table_Name+".csv"))) #[list(map(int,rec)) for rec in csv.reader(open(Path+Table_Name+".csv"), delimiter=',')]
+                All_Tables[Table_Name] = list(csv.reader(open(Path+Table_Name+".csv"))) #[list(map(int,rec)) for rec in csv.reader(open(Path+Table_Name+".csv"), delimiter=',')]
                 for i in range(0,len(All_Tables[Table_Name])):
                     for j in range(0,len(All_Tables[Table_Name][i])):
                         if("“" in All_Tables[Table_Name][i][j] or '"' in All_Tables[Table_Name][i][j]):
@@ -65,18 +63,9 @@ def Projection(Tables,Table_Headers,Common_Headers):
 
     Final_Table = []
     Final_Headers = []
-    # for Table in Tables.values():
-    #     Final_Table.append(Table)
-    # for Header_Name in Table_Headers.values():
-    #     for Each_Header in Header_Name:
-    #         Final_Headers.append(Header_Name)
-    # print (Final_Table)
-    # print (Final_Headers)
     for Table in Tables.keys():
         for Header_Name in Table_Headers[Table]:
-            # if (Header_Name in Common_Headers):
             Final_Headers.append(Table+"."+Header_Name)
-                # Common_Headers.remove(Header_Name)
             Index_Table = list(Tables.keys()).index(Table)
             Index_Header = Table_Headers[Table].index(Header_Name)
             if (len(Final_Table) <= Index_Table):
@@ -115,27 +104,49 @@ def Projection(Tables,Table_Headers,Common_Headers):
     return Latest_Table,Final_Headers
 
 def Differentiate(Conditions):
-    # Where_Cols = []
-    # Operators = []
-    # Values = []
-    # Connector = ""
-
     Where_Cols = []
     Operators = []
     Values = []
     Connector = ""
-    i = 0
-    for element in Conditions.split(" "):
-        if (element.lower() == "and" or element.lower() == "or"):
-            Connector = element.lower()
-            i = -1
-        elif (i == 0):
-            Where_Cols.append(element)
-        elif (i == 1):
-            Operators.append(element)
-        elif (i == 2):
-            Values.append(element)
-        i = (i + 1)%3
+
+    if ("and" in Conditions.lower()):
+        Connector = "and"
+    elif("or" in Conditions.lower()):
+        Connector = "or"
+
+    Conditions = re.split("AND|OR|and|and", Conditions)
+    for Condition in Conditions:
+        Condition = Condition.replace(" ","")
+        if("<=" in Condition):
+            Index = Condition.index("<")
+            Operators.append("<=")
+            Where_Cols.append(Condition[:Index])
+            Values.append(Condition[Index+2:])
+        elif(">=" in Condition):
+            Index = Condition.index(">")
+            Operators.append(">=")
+            Where_Cols.append(Condition[:Index])
+            Values.append(Condition[Index+2:])
+        elif(">" in Condition):
+            Index = Condition.index(">")
+            Operators.append(">")
+            Where_Cols.append(Condition[:Index])
+            Values.append(Condition[Index+1:])
+        elif("<" in Condition):
+            Index = Condition.index("<")
+            Operators.append("<")
+            Where_Cols.append(Condition[:Index])
+            Values.append(Condition[Index+1:])
+        elif("=" in Condition):
+            Index = Condition.index("=")
+            Operators.append("==")
+            Where_Cols.append(Condition[:Index])
+            Values.append(Condition[Index+1:])
+        else:
+            error = 1
+            print ("Syntax Error in Where Clause!")
+            sys.exit(1)
+
     return Where_Cols,Operators,Values,Connector
 
 def Headers_Without_Table(Headers_After_Projection):
@@ -151,7 +162,7 @@ def WhereCondition(Table_After_Projection,Headers_After_Projection,Headers_After
             Index_1 = Headers_After_Projection.index(Where_Cols[0])
             Index_2 = Headers_After_Projection.index(Values[0])
             
-            List_Temp = [v for v in Table_After_Projection if v[Index_1] == v[Index_2]]
+            List_Temp = [v for v in Table_After_Projection if (eval(str(v[Index_1]) + " " + Operators[0] + " " + str(v[Index_2])))]#v[Index_1] == v[Index_2]]
             
             Table_After_Projection = List_Temp
             [r.pop(Index_2) for r in Table_After_Projection]
@@ -165,16 +176,7 @@ def WhereCondition(Table_After_Projection,Headers_After_Projection,Headers_After
                 Index = Headers_After_Projection.index(Where_Cols[0])
             else:
                 Index = Headers_After_Projection_Without_Table_Name.index(Where_Cols[0])
-            if(Operators[0] == "="):
-                List_Temp = [v for v in Table_After_Projection if v[Index] == int(Values[0])]
-            elif(Operators[0] == "<"):
-                List_Temp = [v for v in Table_After_Projection if v[Index] < int(Values[0])]
-            elif(Operators[0] == "<="):
-                List_Temp = [v for v in Table_After_Projection if v[Index] <= int(Values[0])]
-            elif(Operators[0] == ">"):
-                List_Temp = [v for v in Table_After_Projection if v[Index] > int(Values[0])]
-            elif(Operators[0] == ">="):
-                List_Temp = [v for v in Table_After_Projection if v[Index] >= int(Values[0])]
+            List_Temp = [v for v in Table_After_Projection if (eval(str(v[Index]) + " " + Operators[0] + " " + str(Values[0])))]
             Table_After_Projection = List_Temp
         else:
             error = 1
@@ -187,7 +189,7 @@ def WhereCondition(Table_After_Projection,Headers_After_Projection,Headers_After
             Index_2 = Headers_After_Projection.index(Where_Cols[0])
             Index_3 = Headers_After_Projection.index(Values[0])
             Index_4 = Headers_After_Projection.index(Values[1])
-            List_Temp = [v for v in Table_After_Projection if v[Index_1] == v[Index_3] and v[Index_2] == v[Index_4]]
+            List_Temp = [v for v in Table_After_Projection if (eval(str(v[Index_1]) + " " + Operators[0] + " " + str(v[Index_3])+ " " + Connector.lower() + " " + str(v[Index_2]) + " " + Operators[1] + " " + str(v[Index_4])))] #v[Index_1] == v[Index_3] and v[Index_2] == v[Index_4]]
             Table_After_Projection = List_Temp
 
             Index_3 = Headers_After_Projection.index(Values[0])
@@ -214,81 +216,8 @@ def WhereCondition(Table_After_Projection,Headers_After_Projection,Headers_After
                 Index_2 = Headers_After_Projection.index(Where_Cols[1])
             else:
                 Index_2 = Headers_After_Projection_Without_Table_Name.index(Where_Cols[1])
-            if (Connector.lower() == "and"):
-                if(Operators[0] == "="):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_1] == int(Values[0])]
-                elif(Operators[0] == "<"):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_1] < int(Values[0])]
-                elif(Operators[0] == "<="):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_1] <= int(Values[0])]
-                elif(Operators[0] == ">"):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_1] > int(Values[0])]
-                elif(Operators[0] == ">="):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_1] >= int(Values[0])]
-                
-                Table_After_Projection = List_Temp
-                if(Operators[1] == "="):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_2] == int(Values[1])]
-                elif(Operators[1] == "<"):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_2] < int(Values[1])]
-                elif(Operators[1] == "<="):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_2] <= int(Values[1])]
-                elif(Operators[1] == ">"):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_2] > int(Values[1])]
-                elif(Operators[1] == ">="):
-                    List_Temp = [v for v in Table_After_Projection if v[Index_2] >= int(Values[1])]
-
-            elif (Connector.lower() == "or"):
-                if(Operators[0] == "=" and Operators[1] == "="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] == int(Values[0]) or v[Index_2] == int(Values[1]))]
-                elif(Operators[0] == "=" and Operators[1] == "<"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] == int(Values[0]) or v[Index_2] < int(Values[1]))]
-                elif(Operators[0] == "=" and Operators[1] == "<="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] == int(Values[0]) or v[Index_2] <= int(Values[1]))]
-                elif(Operators[0] == "=" and Operators[1] == ">"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] == int(Values[0]) or v[Index_2] > int(Values[1]))]
-                elif(Operators[0] == "=" and Operators[1] == ">="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] == int(Values[0]) or v[Index_2] >= int(Values[1]))]
-                elif(Operators[0] == "<" and Operators[1] == "="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] < int(Values[0]) or v[Index_2] == int(Values[1]))]
-                elif(Operators[0] == "<" and Operators[1] == "<"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] < int(Values[0]) or v[Index_2] < int(Values[1]))]
-                elif(Operators[0] == "<" and Operators[1] == "<="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] < int(Values[0]) or v[Index_2] <= int(Values[1]))]
-                elif(Operators[0] == "<" and Operators[1] == ">"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] < int(Values[0]) or v[Index_2] > int(Values[1]))]
-                elif(Operators[0] == "<" and Operators[1] == ">="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] < int(Values[0]) or v[Index_2] >= int(Values[1]))]
-                elif(Operators[0] == "<=" and Operators[1] == "="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] <= int(Values[0]) or v[Index_2] == int(Values[1]))]
-                elif(Operators[0] == "<=" and Operators[1] == "<"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] <= int(Values[0]) or v[Index_2] < int(Values[1]))]
-                elif(Operators[0] == "<=" and Operators[1] == "<="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] <= int(Values[0]) or v[Index_2] <= int(Values[1]))]
-                elif(Operators[0] == "<=" and Operators[1] == ">"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] <= int(Values[0]) or v[Index_2] > int(Values[1]))]
-                elif(Operators[0] == "<=" and Operators[1] == ">="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] <= int(Values[0]) or v[Index_2] >= int(Values[1]))]
-                elif(Operators[0] == ">" and Operators[1] == "="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] > int(Values[0]) or v[Index_2] == int(Values[1]))]
-                elif(Operators[0] == ">" and Operators[1] == "<"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] > int(Values[0]) or v[Index_2] < int(Values[1]))]
-                elif(Operators[0] == ">" and Operators[1] == "<="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] > int(Values[0]) or v[Index_2] <= int(Values[1]))]
-                elif(Operators[0] == ">" and Operators[1] == ">"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] > int(Values[0]) or v[Index_2] > int(Values[1]))]
-                elif(Operators[0] == ">" and Operators[1] == ">="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] > int(Values[0]) or v[Index_2] >= int(Values[1]))]
-                elif(Operators[0] == ">=" and Operators[1] == "="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] >= int(Values[0]) or v[Index_2] == int(Values[1]))]
-                elif(Operators[0] == ">=" and Operators[1] == "<"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] >= int(Values[0]) or v[Index_2] < int(Values[1]))]
-                elif(Operators[0] == ">=" and Operators[1] == "<="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] >= int(Values[0]) or v[Index_2] <= int(Values[1]))]
-                elif(Operators[0] == ">=" and Operators[1] == ">"):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] >= int(Values[0]) or v[Index_2] > int(Values[1]))]
-                elif(Operators[0] == ">=" and Operators[1] == ">="):
-                    List_Temp = [v for v in Table_After_Projection if (v[Index_1] >= int(Values[0]) or v[Index_2] >= int(Values[1]))]
+            
+            List_Temp = [v for v in Table_After_Projection if (eval(str(v[Index_1]) + " " + Operators[0] + " " + str(Values[0])+ " " + Connector.lower() + " " + str(v[Index_2]) + " " + Operators[1] + " " + str(Values[1])))]
             Table_After_Projection = List_Temp
         else:
             error = 1
@@ -300,6 +229,7 @@ def CheckAggregate(Columns):
     Final_Columns = []
     Final_Aggregate = []
     for Column in Columns.split(','):
+        Column = Column.replace(" ","")
         if (Column.lower().startswith("max(")):
             Final_Aggregate.append("max")
             Final_Columns.append(Column[4:-1])
@@ -331,6 +261,10 @@ def Select_Execution(Table,Headers,Headers_Without_Table_Name,Columns):
             Column_Index.append(Curr_Index)
             Curr_Index += 1
         elif (Column in Headers_Without_Table_Name):
+            if(Headers_Without_Table_Name.count(Column) > 1):
+                error = 1
+                print ("Ambiguous Query!")
+                sys.exit(1)
             Order[Headers_Without_Table_Name.index(Column)] = Curr_Index
             Column_Index.append(Curr_Index)
             Curr_Index += 1
@@ -361,19 +295,22 @@ def Select_Execution(Table,Headers,Headers_Without_Table_Name,Columns):
 def Aggregate_Execute(Table,Headers,Aggregate):
     New_Table = []
     New_Headers = []
-
     for i in range (0,len(Aggregate)):
         if (Aggregate[i].lower() == "sum"):
-            New_Table.append(sum([row[i] for row in Table]))
+            if (len(Table)):
+                New_Table.append(sum([row[i] for row in Table]))
             New_Headers.append("sum("+Headers[i]+")")
         elif(Aggregate[i].lower() == "min"):
-            New_Table.append(min([row[i] for row in Table]))
+            if (len(Table)):
+                New_Table.append(min([row[i] for row in Table]))
             New_Headers.append("min("+Headers[i]+")")
         elif(Aggregate[i].lower() == "max"):
-            New_Table.append(max([row[i] for row in Table]))
+            if (len(Table)):
+                New_Table.append(max([row[i] for row in Table]))
             New_Headers.append("max("+Headers[i]+")")
         elif(Aggregate[i].lower() == "avg"):
-            New_Table.append(sum([row[i] for row in Table])/len([row[i] for row in Table]))
+            if (len(Table)):
+                New_Table.append(sum([row[i] for row in Table])/len([row[i] for row in Table]))
             New_Headers.append("avg("+Headers[i]+")")
         else:
             error = 1
@@ -393,16 +330,10 @@ def main():
         Query = Query[:-1]
     parsed = sqlparse.parse(Query)
 
-    # print (parsed[0].tokens)
     Query_Stmt = []
     for i in parsed[0]:
         if(not str(i).startswith(" ") or  not str(i).endswith(" ")):
-        # if (str(i)!=' ' and str(i)!='  '):
             Query_Stmt.append(str(i))
-
-    # print (Query_Stmt)
-    # for i in Query_Stmt:
-        # print (len(i))
 
     Columns = ""
     Tables_Name = ""
@@ -452,24 +383,17 @@ def main():
     Headers = Get_Headers(Tables_Name,All_Tables_Headers)
 
     Dictinct_Headers = Get_Distinct_Headers(Headers)
-    # print (Dictinct_Headers)
 
     Table,Headers = Projection(Tables,Headers,Dictinct_Headers)
 
     Headers_Without_Table_Name = Headers_Without_Table(Headers)
 
-    for Column in Columns.split(","):
-        if (Column not in Headers and Column not in Headers_Without_Table_Name):
-            print ("Error Occurred. Column " + Column + " Not Found in Any Table!")
-            sys.exit(1)
-  
-
-    Where_Cols,Operators,Values,Connector = Differentiate(Conditions)
-
-    Conditions = re.split("AND|OR|and|and", Conditions)
-    print (Conditions)
-
     if (Where):
+        Where_Cols,Operators,Values,Connector = Differentiate(Conditions)
+        for table_name in Where_Cols:
+            if (table_name not in Headers and table_name not in Headers_Without_Table_Name):
+                print ("Error Occurred. Column name " + table_name + " used in where clause is not Found in Any Table!")
+                sys.exit(1)
         Table,Headers,Headers_Without_Table_Name = WhereCondition(Table,Headers,Headers_Without_Table_Name,Where_Cols,Operators,Values,Connector)
 
     Columns,Aggregate = CheckAggregate(Columns)
